@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"> -->
+    <title>Collatz Neighbors – Glowing Paths (Cumulative Tree)</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: black;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .info {
+            position: fixed;
+            bottom: 15px;
+            left: 15px;
+            color: white;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-family: monospace;
+            font-size: 14px;
+            pointer-events: none;
+            backdrop-filter: blur(4px);
+            z-index: 10;
+        }
+
+        .info span {
+            color: #ffaa44;
+            font-weight: bold;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+</head>
+
+<body>
+    <div class="info">
+        🌀 Number: <span id="currentNum">—</span> &nbsp;|&nbsp;
+        🔥 Neighbor pair: <span id="highlightStatus">No</span>
+    </div>
+
+    <script>
+        // ----- globals -----
+        let num = 0;                 // current starting number
+        let stepCache = new Map();   // cache total steps for numbers
+        let frameDelay = 0;          // optional throttle
+
+        function setup() {
+            createCanvas(windowWidth, windowHeight);
+            angleMode(DEGREES);
+            background(0);            // <-- BLACK ONCE – never cleared again
+            noFill();
+            strokeWeight(1.5);
+            frameRate(30);
+        }
+
+        function draw() {
+            // increment starting number
+            num++;
+            if (num > 15000) {
+                // optional: reset after a large number (or never reset)
+                // noLoop();
+            }
+
+            // compute total stopping time for current and next number
+            const stepsCurr = getTotalSteps(num);
+            const stepsNext = getTotalSteps(num + 1);
+
+            const isNeighborPair = (stepsCurr === stepsNext);
+            updateInfo(num, isNeighborPair);
+
+            // generate Collatz path for 'num' (list from 1 to num)
+            const path = buildCollatzPath(num);
+
+            // draw the path with glow if it's a neighbor pair
+            drawPath(path, isNeighborPair);
+        }
+
+        // ---------- Collatz total stopping time with caching ----------
+        function getTotalSteps(n) {
+            if (stepCache.has(n)) return stepCache.get(n);
+            let steps = 0;
+            let m = BigInt(n);
+            while (m !== 1n) {
+                if (m % 2n === 0n) {
+                    m = m / 2n;
+                } else {
+                    m = m * 3n + 1n;
+                }
+                steps++;
+            }
+            stepCache.set(n, steps);
+            return steps;
+        }
+
+        // ---------- Build the path list from 1 up to n (like original unshift) ----------
+        function buildCollatzPath(n) {
+            let path = [n];
+            let m = n;
+            while (m !== 1) {
+                if (m % 2 === 0) {
+                    m = m / 2;
+                } else {
+                    m = m * 3 + 1;
+                }
+                path.unshift(m);      // prepend so the list is [1, ..., n]
+            }
+            return path;
+        }
+
+        // ---------- Draw the path with rotations & translations ----------
+        function drawPath(path, highlight) {
+            push();
+            // start from bottom center
+            translate(width / 2, height);
+            const segmentLength = 5;
+
+            // if highlight, enable shadow glow
+            if (highlight) {
+                drawingContext.shadowBlur = 15;
+                drawingContext.shadowColor = "#ffaa44";
+                stroke(255, 200, 80);      // bright orange/yellow
+                strokeWeight(8.5);
+            } else {
+                // random pastel color (keep visible on black)
+                stroke(random(100, 255), random(100, 255), random(100, 255));
+                strokeWeight(4.2);
+            }
+
+            // iterate over each value in the path (starting from 1)
+            for (let i = 0; i < path.length; i++) {
+                const val = path[i];
+                // rotate based on parity (odd/even) – reversed for aesthetics
+                if (val % 2 === 0) {
+                    rotate(3);      // even → small right turn
+                } else {
+                    rotate(-6.5);   // odd → sharper left turn
+                }
+                // draw a tiny dot at the current position
+                point(0, 0);
+                // move forward
+                translate(0, -segmentLength);
+            }
+
+            // optional: draw a small circle at the end (starting number)
+            push();
+            translate(0, segmentLength); // go back one step? Actually we are at the final position.
+            // better: just draw at the end of the path (where we are after the loop)
+            fill(highlight ? "#ffaa44" : "#ffffff");
+            noStroke();
+            circle(0, 0, 10);
+            pop();
+
+            pop(); // restore transformation
+            drawingContext.shadowBlur = 0; // reset shadow for next path
+        }
+
+        // ---------- update the HTML overlay ----------
+        function updateInfo(n, isHighlight) {
+            const numSpan = document.getElementById("currentNum");
+            const statusSpan = document.getElementById("highlightStatus");
+            if (numSpan) numSpan.innerText = n;
+            if (statusSpan) {
+                statusSpan.innerText = isHighlight ? "YES ✨" : "No";
+                statusSpan.style.color = isHighlight ? "#ffaa44" : "#aaa";
+            }
+        }
+
+        // ---------- resize canvas when window resizes ----------
+        function windowResized() {
+            resizeCanvas(windowWidth, windowHeight);
+            // important: preserve the existing drawing when resizing?
+            // p5's resizeCanvas clears the canvas, so we need to redraw.
+            // To keep the cumulative tree, we would need to store all previous paths.
+            // For simplicity, we can just clear and start over (or keep as is).
+            // But since the original sketch likely didn't handle resize, we'll just reset background.
+            background(0);
+            // Optional: you could store paths and redraw, but that's more complex.
+            // I'll add a note in the code.
+            console.log("Window resized – canvas reset. To preserve tree, you'd need to store all paths.");
+        }
+    </script>
+</body>
+
+</html>
